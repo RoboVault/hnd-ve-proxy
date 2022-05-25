@@ -27,7 +27,7 @@ contract StrategyProxy is Initializable {
 
     uint256 lastTimeCursor;
 
-    constructor() public {
+    constructor() {
         governance = msg.sender;
     }
     function initialize(
@@ -79,7 +79,7 @@ contract StrategyProxy is Initializable {
 
     function vote(address _gauge, uint256 _amount) public {
         require(voters[msg.sender], "!voter");
-        // proxy.safeExecute(gaugeController, 0, abi.encodeWithSignature("vote_for_gauge_weights(address,uint256)", _gauge, _amount));
+        proxy.safeExecute(gaugeController, 0, abi.encodeWithSignature("vote_for_gauge_weights(address,uint256)", _gauge, _amount));
     }
 
     function withdraw(
