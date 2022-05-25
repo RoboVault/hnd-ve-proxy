@@ -15,9 +15,9 @@ contract MultiStrategyProxy is Initializable {
     using SafeProxy for IProxy;
 
     struct Strategy {
-        bool isInitialised;
-        bool isApproved;
+        address addr;
         uint256 shares;
+        bool isPaused; // Indicates deposits are paused for this strategy
     }
 
     IProxy public proxy;
@@ -27,18 +27,17 @@ contract MultiStrategyProxy is Initializable {
     address public governance;
     address public pendingGovernance;
     address public feeDistribution;// = FeeDistribution(0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc);
+    uint256 dust = 1e12;
 
-    // gauge => strategies
-    mapping(address => mapping(address => Strategy)) strategies;
-
-    // Total shares for a given gauge
+    mapping(address => Strategy[]) strategies;
     mapping(address => uint256) totalSupply;
-
-    
     mapping(address => bool) public voters;
 
     // EVENTS
     event StrategyApproved(address indexed _gauge, address indexed _strategy);
+    event StrategyRevoked(address indexed _gauge, address indexed _strategy);
+    event StrategyPaused(address indexed _gauge, address indexed _strategy);
+    event StrategyUnpaused(address indexed _gauge, address indexed _strategy);
     event Transfer(address indexed _gauge, address indexed from, address indexed to, uint256 value);
 
     uint256 lastTimeCursor;
@@ -63,34 +62,59 @@ contract MultiStrategyProxy is Initializable {
         pendingGovernance = _governance;
     }
 
+    function setDust(uint256 _dust) external {
+        require(msg.sender == governance, "!governance");
+        dust = _dust;
+    }
+
     function acceptGovernance() external {
         require(msg.sender == pendingGovernance, "!pendingGovernance");
         governance = pendingGovernance;
         pendingGovernance = address(0);
     }
 
+    function findStrategy(address _gauge, address _strategy) public view returns (uint256) {
+        Strategy[] storage strats = strategies[_gauge];
+        for (uint i; i < strats.length; i++) {
+            if (strats[i].addr == _strategy)
+                return i;
+        }
+        return type(uint256).max;
+    }
+
     function approveStrategy(address _gauge, address _strategy) external {
         require(msg.sender == governance, "!governance");
-
-        // Check it's a fresh strat, and approve it if it is. Initials with a balance of 0 shares
-        if (!strategies[_gauge][_strategy].isInitialised) {
-            strategies[_gauge][_strategy] = Strategy(true, true, 0);
-            emit StrategyApproved(_gauge, _strategy);
-            return;
-        }
-
-        // Check it's not already approved
-        require (!strategies[_gauge][_strategy].isApproved, 'isApproved');
-
-        // approve the strat
-        strategies[_gauge][_strategy].isApproved = true;
+        uint256 idx = findStrategy(_gauge, _strategy);
+        require (idx == type(uint256).max, "Strategy already approved");
+        strategies[_gauge].push(Strategy(_strategy, 0, false));
         emit StrategyApproved(_gauge, _strategy);           
     }
 
-    function revokeStrategy(address _gauge, address _strategy) external {
+    function revokeStrategy(address _gauge, address _strategy, bool _force) external {
         require(msg.sender == governance, "!governance");
-        require (strategies[_gauge][_strategy].isApproved, '!approved');
-        strategies[_gauge][_strategy].isApproved = false;
+        uint256 idx = findStrategy(_gauge, _strategy);
+        require (idx == type(uint256).max, "Strategy not found");
+        require (strategies[_gauge][idx].shares == 0 || _force, "Strategy balance non-zero");
+        strategies[_gauge][idx] = strategies[_gauge][strategies[_gauge].length];
+        strategies[_gauge].pop();
+    }
+
+    function pauseStrategy(address _gauge, address _strategy) external {
+        require(msg.sender == governance, "!governance");
+        uint256 idx = findStrategy(_gauge, _strategy);
+        require (idx == type(uint256).max, "Strategy not found");
+        require (!strategies[_gauge][idx].isPaused, "Strategy already paused");
+        strategies[_gauge][idx].isPaused = true;
+        emit StrategyPaused(_gauge, _strategy);           
+    }
+
+    function unpauseStrategy(address _gauge, address _strategy) external {
+        require(msg.sender == governance, "!governance");
+        uint256 idx = findStrategy(_gauge, _strategy);
+        require (idx != type(uint256).max, "Strategy not found");
+        require (strategies[_gauge][idx].isPaused, "Strategy not paused");
+        strategies[_gauge][idx].isPaused = false;
+        emit StrategyUnpaused(_gauge, _strategy);           
     }
 
     function approveVoter(address _voter) external {
@@ -126,9 +150,12 @@ contract MultiStrategyProxy is Initializable {
 
     function deposit(address _gauge, uint256 _assets) external {
         // Strategy must be approved
-        require(strategies[_gauge][msg.sender].isApproved, "!strategy");
         address strategy = msg.sender;
+        uint256 idx = findStrategy(_gauge, strategy);
+        require (idx != type(uint256).max, "!strategy");
+        require (strategies[_gauge][idx].isPaused, "!paused");
 
+        // require(strategies[_gauge][msg.sender].isApproved, "!strategy");
         // Transfer the LP token from the strategy to the proxy
         address lpToken = IGauge(_gauge).lp_token();
         uint256 shares = convertToShares(_gauge, _assets);
@@ -136,8 +163,11 @@ contract MultiStrategyProxy is Initializable {
         IERC20(lpToken).transferFrom(msg.sender, address(proxy), _assets);
         require(IERC20(lpToken).balanceOf(address(proxy)) - balBefore == _assets);
 
+        // Need to harvest before minting
+        _harvest(_gauge);
+
         // Mint shares for the strategy
-        _mint(_gauge, strategy, shares);
+        _mint(_gauge, idx, shares);
         
         // Now deposit into gauge
         proxy.safeExecute(lpToken, 0, abi.encodeWithSignature("approve(address,uint256)", _gauge, 0));
@@ -145,21 +175,27 @@ contract MultiStrategyProxy is Initializable {
         proxy.safeExecute(_gauge, 0, abi.encodeWithSignature("deposit(uint256)", _assets));
     }
 
-    function withdraw(
+    function _withdraw(
         address _gauge,
-        uint256 _assets
-    ) public returns (uint256) {
-        address strategy = msg.sender;
+        uint256 _assets,
+        address _strategy
+    ) internal returns (uint256) {
         address lpToken = IGauge(_gauge).lp_token();
         uint256 shares = convertToShares(_gauge, _assets);
 
-        // check the strategy has enough balance
-        require (balanceOf(_gauge, strategy) >= shares);
-        
-        // burn the shares
-        _burn(_gauge, strategy, shares);
+        uint256 idx = findStrategy(_gauge, _strategy);
+        require (idx != type(uint256).max, "!strategy");
 
-        // Withdraw lp tokens from the gauge
+        // check the strategy has enough balance
+        require (strategies[_gauge][idx].shares >= shares);
+        
+        // Need to harvest before burning
+        _harvest(_gauge);
+
+        // burn the shares
+        _burn(_gauge, idx, shares);
+
+        // withdraw lp tokens from the gauge
         uint256 _balance = IERC20(lpToken).balanceOf(address(proxy));
         proxy.safeExecute(_gauge, 0, abi.encodeWithSignature("withdraw(uint256)", _assets));
         _balance = IERC20(lpToken).balanceOf(address(proxy)).sub(_balance);
@@ -168,21 +204,44 @@ contract MultiStrategyProxy is Initializable {
     }
 
     function balanceOf(address _gauge, address _strategy) public view returns (uint256) {
-        return strategies[_gauge][_strategy].shares;
+        uint256 idx = findStrategy(_gauge, _strategy);
+        require (idx != type(uint256).max, "!strategy");
+        return strategies[_gauge][idx].shares;
     }
 
-    // function withdrawAll(address _gauge, address _token) external returns (uint256) {
-    //     require(strategies[_gauge] == msg.sender, "!strategy");
-    //     return withdraw(_gauge, _token, balanceOf(_gauge));
-    // }
+    //
+    function withdrawAll(address _gauge) external returns (uint256) {
+        return _withdraw(_gauge, balanceOf(_gauge, msg.sender), msg.sender);
+    }
 
-    // function harvest(address _gauge) external {
-    //     require(strategies[_gauge] == msg.sender, "!strategy");
-    //     uint256 _balance = IERC20(hnd).balanceOf(address(proxy));
-    //     proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
-    //     _balance = (IERC20(hnd).balanceOf(address(proxy))).sub(_balance);
-    //     proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, _balance));
-    // }
+    // 
+    function withdraw(address _gauge, uint256 _assets) internal returns (uint256) {
+        return _withdraw(_gauge, _assets, msg.sender);
+    }
+
+    function _harvest(address _gauge) internal {
+        uint256 before = IERC20(hnd).balanceOf(address(proxy));
+        proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
+        uint256 harvested = (IERC20(hnd).balanceOf(address(proxy))).sub(before);
+
+        if (harvested > dust) {
+            _distributeHarvest(_gauge, harvested);
+        }
+    }
+
+    function harvest(address _gauge) external {
+        _harvest(_gauge);
+    }
+
+    function _distributeHarvest(address _gauge, uint256 _amount) internal {
+        Strategy[] storage strats = strategies[_gauge];
+        for (uint i; i < strats.length; i++) {
+            if (strats[i].shares > 0) {
+                uint256 amount = strats[i].shares.mul(_amount).div(totalSupply[_gauge]);
+                proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, amount));
+            }
+        }
+    }
 
     function setfeeDistribution(address _feeDistribution) external {
         require(msg.sender == governance, "!gov");
@@ -210,31 +269,25 @@ contract MultiStrategyProxy is Initializable {
         proxy.safeExecute(_token, 0, abi.encodeWithSignature("transfer(address,uint256)", governance, IERC20(_token).balanceOf(address(proxy))));
     }
 
-    function _mint(address _gauge, address _strategy, uint256 _shares) internal {
-        require(_strategy != address(0), "mint to the zero address");
-        require(strategies[_gauge][_strategy].isApproved, "minting an unapproved strategy");
-
+    function _mint(address _gauge, uint256 _idx, uint256 _shares) internal {
         totalSupply[_gauge] += _shares;
-        strategies[_gauge][_strategy].shares += _shares;
-        emit Transfer(_gauge, address(0), _strategy, _shares);       
+        strategies[_gauge][_idx].shares += _shares;
+        emit Transfer(_gauge, address(0), strategies[_gauge][_idx].addr, _shares);       
     }
 
-
-    function _burn(address _gauge, address _strategy, uint256 _shares) internal virtual {
-        require(_strategy != address(0), "burn from the zero address");
-
-        uint256 strategyBalance = strategies[_gauge][_strategy].shares;
+    function _burn(address _gauge, uint256 _idx, uint256 _shares) internal {
+        uint256 strategyBalance = strategies[_gauge][_idx].shares;
         require(strategyBalance >= _shares, "burn amount exceeds balance");
         unchecked {
-            strategies[_gauge][_strategy].shares = strategyBalance - _shares;
+            strategies[_gauge][_idx].shares = strategyBalance - _shares;
         }
         totalSupply[_gauge] -= _shares;
-        emit Transfer(_gauge, _strategy, address(0), _shares);
+        emit Transfer(_gauge, strategies[_gauge][_idx].addr, address(0), _shares);
     }
 
-    // function claimRewards(address _gauge, address _token) external {
-    //     require(strategies[_gauge] == msg.sender, "!strategy");
-    //     IGauge(_gauge).claim_rewards(address(proxy));
-    //     proxy.safeExecute(_token, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, IERC20(_token).balanceOf(address(proxy))));
-    // }
+    function claimRewards(address _gauge, address _token) external {
+        require(governance == msg.sender, "!governance");
+        IGauge(_gauge).claim_rewards(address(proxy));
+        proxy.safeExecute(_token, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, IERC20(_token).balanceOf(address(proxy))));
+    }
 }

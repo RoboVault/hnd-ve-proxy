@@ -21,7 +21,6 @@ contract StrategyProxy is Initializable {
     address public pendingGovernance;
     address public feeDistribution;// = FeeDistribution(0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc);
 
-    // gauge => strategies
     mapping(address => address) public strategies;
     mapping(address => bool) public voters;
 
@@ -30,6 +29,7 @@ contract StrategyProxy is Initializable {
     constructor() {
         governance = msg.sender;
     }
+
     function initialize(
         address _gov,
         address _proxy
