@@ -153,7 +153,7 @@ contract MultiStrategyProxy is Initializable {
         address strategy = msg.sender;
         uint256 idx = findStrategy(_gauge, strategy);
         require (idx != type(uint256).max, "!strategy");
-        require (strategies[_gauge][idx].isPaused, "!paused");
+        require (!strategies[_gauge][idx].isPaused, "!paused"); // Why does it require the strat to be paused?
 
         // require(strategies[_gauge][msg.sender].isApproved, "!strategy");
         // Transfer the LP token from the strategy to the proxy

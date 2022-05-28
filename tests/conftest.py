@@ -1,7 +1,5 @@
 import pytest
-from brownie import config
-from brownie import Contract
-from brownie import interface, project
+from brownie import config, accounts, Contract
 
 
 # @pytest.fixture
@@ -35,9 +33,84 @@ def gov(accounts):
     yield accounts[0]
     
 @pytest.fixture
+def rewards(accounts):
+    yield accounts[1]
+
+@pytest.fixture
+def husdc_whale(accounts):
+    acc = accounts.at("0xaee2ae13ebf81d38df5a9ed7013e80ea3f72e39b", force=True) # 
+    yield acc
+
+@pytest.fixture
+def hfrax_whale(accounts):
+    acc = accounts.at("0x46b75f2d0b91d5147412d50f69b96119f5577e1b", force=True) # 
+    yield acc
+
+@pytest.fixture
+def husdc(interface):
+    yield interface.IERC20Extended("0x243E33aa7f6787154a8E59d3C27a66db3F8818ee")
+
+@pytest.fixture
+def hfrax(interface):
+    yield interface.IERC20Extended("0xb4300e088a3AE4e624EE5C71Bc1822F68BB5f2bc")
+
+@pytest.fixture
+def hnd(interface):
+    yield interface.IERC20Extended("0x10010078a54396F62c96dF8532dc2B4847d47ED3")
+
+@pytest.fixture
+def husdc_amount(husdc):
+    amount = 10_000 * 10 ** husdc.decimals()
+    yield amount
+
+@pytest.fixture
+def hfrax_amount(hfrax):
+    amount = 10_000 * 10 ** hfrax.decimals()
+    yield amount
+
+@pytest.fixture
+def hndVoterProxy(veHNDVoter, gov):
+    voter = veHNDVoter.deploy({"from": gov})
+    voter.initialize(gov)
+    yield voter
+
+@pytest.fixture
+def multistrat_proxy(gov, hndVoterProxy, MultiStrategyProxy):
+    strategy = MultiStrategyProxy.deploy({"from": gov})
+    strategy.initialize(gov, hndVoterProxy)
+    yield strategy
+
+@pytest.fixture
+def husdc_gauge():
+    yield "0x110614276F7b9Ae8586a1C1D9Bc079771e2CE8cF"
+
+@pytest.fixture
+def hfrax_gauge():
+    yield "0x2c7a9d9919f042C4C120199c69e126124d09BE7c"
+
+@pytest.fixture
 def oz(pm):
     yield pm(config["dependencies"][0])
 
+# Accounts 6-7-8 are used as "mock strategies"
+
+@pytest.fixture
+def mock_strategy_1(husdc_whale, husdc, accounts, husdc_amount):
+    husdc.approve(accounts[6], husdc_amount, {"from": husdc_whale})
+    husdc.transfer(accounts[6], husdc_amount, {"from": husdc_whale}) 
+    yield accounts[6]
+
+@pytest.fixture
+def mock_strategy_2(husdc_whale, husdc, accounts, husdc_amount):
+    husdc.approve(accounts[7], husdc_amount, {"from": husdc_whale})
+    husdc.transfer(accounts[7], husdc_amount, {"from": husdc_whale})
+    yield accounts[7]
+
+@pytest.fixture
+def mock_strategy_frax(hfrax_whale, hfrax, accounts, hfrax_amount):
+    hfrax.approve(accounts[8], hfrax_amount, {"from": hfrax_whale})
+    hfrax.transfer(accounts[8], hfrax_amount, {"from": hfrax_whale})
+    yield accounts[8]
 # Function scoped isolation fixture to enable xdist.
 # Snapshots the chain before each test and reverts after test completion.
 @pytest.fixture(scope="function", autouse=True)
