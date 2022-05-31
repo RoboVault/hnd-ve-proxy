@@ -2,6 +2,36 @@ import pytest
 from brownie import config, accounts, Contract
 
 
+# TODO tests
+# - FIX first test
+# - Test two strats together, profit 50/50
+# - Test two strats together, one with 100% allocation, one with 50% allocation, profit 67/33
+# - Test one strat usdc, one frax delayed
+# - Test one strat usdc, one frax together, profit % based on apr
+#       - How to pull apr?
+# - Test deposit, withdraw more than deposited (should fail), withdraw half (should succeed), withdraw all
+# - Same test deposit, but with usdc and frax
+# - Test strat deposit from not approved strat (should fail)
+# - Test strat deposit from paused strat (should fail)
+# - 
+
+
+# THINGS I NOTICED / CHANGED
+# - Multistrat deposit requires the strategy to be paused?
+#       Changed from
+#           require (strategies[_gauge][idx].isPaused, "!paused"); 
+#       to
+#           require (!strategies[_gauge][idx].isPaused, "!paused"); 
+# - Anyone can call harvest(). Is this intended?
+# - Anyone can call withdraw and withdrawAll() and drain the contract
+#       TODO add checks
+# - Do we want to let a "Paused" strategy withdraw funds? In my opinion yes
+# - Withdraw: instead of sending it to msg.sender, we should send it to the correct strat
+# - withdrawAll() should call withdraw for each strat, otherwise strats could "steal" other strats funds
+# - If a strategy is paused, will it still receive the rewards?
+# - Do we need an emergencyExit function?
+# - sweepProxy could be used to steal everything if the gov address is compromized
+
 # @pytest.fixture
 # def veHNDVoter(pm, gov, veHNDVoter):
 #     Vault = pm(config["dependencies"][0]).Vault
@@ -78,6 +108,7 @@ def hndVoterProxy(veHNDVoter, gov):
 def multistrat_proxy(gov, hndVoterProxy, MultiStrategyProxy):
     strategy = MultiStrategyProxy.deploy({"from": gov})
     strategy.initialize(gov, hndVoterProxy)
+    hndVoterProxy.setStrategy(strategy.address, {"from": gov})
     yield strategy
 
 @pytest.fixture

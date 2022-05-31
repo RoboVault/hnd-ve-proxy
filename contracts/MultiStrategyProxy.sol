@@ -153,7 +153,7 @@ contract MultiStrategyProxy is Initializable {
         address strategy = msg.sender;
         uint256 idx = findStrategy(_gauge, strategy);
         require (idx != type(uint256).max, "!strategy");
-        require (!strategies[_gauge][idx].isPaused, "!paused"); // Why does it require the strat to be paused?
+        require (!strategies[_gauge][idx].isPaused, "!paused"); 
 
         // require(strategies[_gauge][msg.sender].isApproved, "!strategy");
         // Transfer the LP token from the strategy to the proxy
@@ -211,11 +211,13 @@ contract MultiStrategyProxy is Initializable {
 
     //
     function withdrawAll(address _gauge) external returns (uint256) {
+        //TODO require GOV / strategy!
         return _withdraw(_gauge, balanceOf(_gauge, msg.sender), msg.sender);
     }
 
     // 
     function withdraw(address _gauge, uint256 _assets) internal returns (uint256) {
+        //TODO require GOV / strategy!
         return _withdraw(_gauge, _assets, msg.sender);
     }
 
@@ -289,5 +291,15 @@ contract MultiStrategyProxy is Initializable {
         require(governance == msg.sender, "!governance");
         IGauge(_gauge).claim_rewards(address(proxy));
         proxy.safeExecute(_token, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, IERC20(_token).balanceOf(address(proxy))));
+    }
+
+    event DEBU(string s, uint256 x);
+    function debu(address _gauge) external {
+        uint256 before = IERC20(hnd).balanceOf(address(proxy));
+        proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
+        uint256 harvested = (IERC20(hnd).balanceOf(address(proxy))).sub(before);
+
+        emit DEBU("HND BALANCE ", IERC20(hnd).balanceOf(address(proxy)));
+        emit DEBU("HARVESTED ", harvested);
     }
 }
