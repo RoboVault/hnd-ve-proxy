@@ -21,12 +21,9 @@ def test_operation_single_strat(chain, deployed_vault, multistrat_proxy, husdc_g
     strategy.harvest()
     print("Balance of gauge after", husdc.balanceOf(husdc_gauge))
 
-    assert 1 == 0
-
-    chain.sleep(1)
     chain.sleep(3600 * 24)
     chain.mine() # sleeps for 1 day
-    multistrat_proxy.harvest()
+    multistrat_proxy.harvest(husdc_gauge)
     strategy.harvest()
 
 
@@ -34,6 +31,7 @@ def test_operation_single_strat(chain, deployed_vault, multistrat_proxy, husdc_g
     hnd_balance = hnd.balanceOf(strategy)
     
     # Want should increase, hnd should be sold
+    print("EstimatedTotalAssets", strategy.estimatedTotalAssets())
     assert usdc_amount < strategy.estimatedTotalAssets()
     assert pytest.approx(hnd_balance, rel=REL_APPROX) == 0
 

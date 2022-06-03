@@ -34,7 +34,7 @@ contract MultiStrategyProxy is Initializable {
     uint256 public roboFee = 1000; // 10% of HND goes to `rewards` to increase the lock
 
     mapping(address => Strategy[]) strategies;
-    mapping(address => uint256) totalSupply;
+    mapping(address => uint256) public totalSupply;
     mapping(address => bool) public voters;
 
     // EVENTS
@@ -158,6 +158,7 @@ contract MultiStrategyProxy is Initializable {
         return IERC20(_gauge).balanceOf(address(proxy));
     }
 
+    // assets : totalAssets = shares : totalSupply
     function convertToShares(address _gauge, uint256 assets) public view returns (uint256) {
         uint256 _totalSupply = totalSupply[_gauge];
         uint256 _totalAssets = totalAssets(_gauge);
@@ -178,14 +179,7 @@ contract MultiStrategyProxy is Initializable {
         address lpToken = IGauge(_gauge).lp_token();
         uint256 shares = convertToShares(_gauge, _assets);
         uint256 balBefore = IERC20(lpToken).balanceOf(address(proxy));
-        emit DEBU("Before", balBefore);
-        emit DEBU("Assets", _assets);
-        emit DEBU("cTokenBal", IERC20(lpToken).balanceOf(strategy));
-        emit DEBU("approve", IERC20(lpToken).allowance(strategy, address(proxy)));
-        return;
         IERC20(lpToken).safeTransferFrom(msg.sender, address(proxy), _assets);
-        emit DEBU("after", IERC20(lpToken).balanceOf(address(proxy)));
-        require(1 == 0, "HERE");
         require(IERC20(lpToken).balanceOf(address(proxy)) - balBefore == _assets);
 
         // Need to harvest before minting
@@ -255,7 +249,7 @@ contract MultiStrategyProxy is Initializable {
         uint256 harvested = (IERC20(hnd).balanceOf(address(proxy))).sub(before);
 
         if (harvested > dust) {
-            uint256 rewardsAmount = amount * roboFee / BASIS_PRECISION;
+            uint256 rewardsAmount = harvested * roboFee / BASIS_PRECISION;
             proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", rewards, rewardsAmount));
             _distributeHarvest(_gauge, harvested - rewardsAmount);
         }
@@ -267,9 +261,10 @@ contract MultiStrategyProxy is Initializable {
 
     function _distributeHarvest(address _gauge, uint256 _amount) internal {
         Strategy[] storage strats = strategies[_gauge];
+        uint256 totalSupply = totalSupply[_gauge];
         for (uint i; i < strats.length; i++) {
             if (strats[i].shares > 0) {
-                uint256 amount = strats[i].shares.mul(_amount).div(totalSupply[_gauge]);
+                uint256 amount = strats[i].shares.mul(_amount).div(totalSupply);
                 //proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, amount)); OLD. Why always msg.sender? Should be strats[i].addr
                 proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", strats[i].addr, amount));
             }

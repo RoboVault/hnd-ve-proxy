@@ -86,7 +86,6 @@ contract LenderStrategy is BaseStrategy {
     function _initializeStrat(string memory _name, address _multiStratProxy, address _gauge, address _cToken) internal {
         // initialize variables
         maxReportDelay = 14400; // 4 hours 
-        healthCheck = address(0xebc79550f3f3Bc3424dde30A157CE3F22b66E274); // Fantom common health check
         // set our strategy's name
         stratName = _name;
         multiStratProxy = MultiStrategyProxy(_multiStratProxy);
@@ -94,6 +93,7 @@ contract LenderStrategy is BaseStrategy {
         cToken = CErc20I(_cToken);
         want.safeApprove(_cToken, type(uint256).max);
         IERC20(_cToken).safeApprove(address(multiStratProxy.proxy()), type(uint256).max);
+        IERC20(_cToken).safeApprove(address(multiStratProxy), type(uint256).max);
     }
 
     function cloneStrategy(
@@ -130,8 +130,14 @@ contract LenderStrategy is BaseStrategy {
     }
 
     function balanceOfStaked() public view returns (uint256) {
-        // TODO
-        return 0;
+        uint256 total = multiStratProxy.totalAssets(gauge);
+        uint256 totalShares = multiStratProxy.totalSupply(gauge);
+        // Assets = shares * total / totalShares
+        if(totalShares == 0) {
+            return 0;
+        }
+        uint256 cTokensStaked = multiStratProxy.balanceOf(gauge, address(this)).mul(total).div(totalShares);
+        return cTokensStaked.mul(cToken.exchangeRateStored()) * 10 ** (cToken.decimals() - want.decimals());
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {

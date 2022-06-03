@@ -45,7 +45,7 @@ def test_two_deposits(chain, deployed_vault, multistrat_proxy, husdc_gauge, gov,
     # sleeps for 1 day
     chain.sleep(3600 * 24)
     chain.mine() 
-    multistrat_proxy.harvest()
+    multistrat_proxy.harvest(husdc_gauge)
     # Rewards should be the same
 
     pytest.approx(hnd.balanceOf(strategy), rel=REL_APPROX) == hnd.balanceOf(second_strategy_usdc)
@@ -61,7 +61,7 @@ def test_delayed_deposits(chain, deployed_vault, multistrat_proxy, husdc_gauge, 
     # sleeps for 1 day
     chain.sleep(3600 * 24)
     chain.mine() 
-    multistrat_proxy.harvest()
+    multistrat_proxy.harvest(husdc)
     # Rewards should be the same
 
     pytest.approx(hnd.balanceOf(strategy), rel=REL_APPROX) == hnd.balanceOf(second_strategy_usdc)
