@@ -27,7 +27,11 @@ contract MultiStrategyProxy is Initializable {
     address public governance;
     address public pendingGovernance;
     address public feeDistribution;// = FeeDistribution(0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc);
+    address public rewards;
     uint256 dust = 1e12;
+    
+    uint256 constant BASIS_PRECISION = 10000;
+    uint256 public roboFee = 1000; // 10% of HND goes to `rewards` to increase the lock
 
     mapping(address => Strategy[]) strategies;
     mapping(address => uint256) totalSupply;
@@ -44,6 +48,7 @@ contract MultiStrategyProxy is Initializable {
 
     constructor() {
         governance = msg.sender;
+        rewards = governance;
     }
 
     function initialize(
@@ -51,6 +56,7 @@ contract MultiStrategyProxy is Initializable {
         address _proxy
     ) public initializer {
         governance = _gov;
+        rewards = _gov;
         proxy = IProxy(_proxy);
         hnd = address(0x10010078a54396F62c96dF8532dc2B4847d47ED3);
         minter = address(0x42B458056f887Fd665ed6f160A59Afe932e1F559);
@@ -117,6 +123,17 @@ contract MultiStrategyProxy is Initializable {
         emit StrategyUnpaused(_gauge, _strategy);           
     }
 
+    function setRoboFee(uint256 newFee) external {
+        require(msg.sender == governance, "!governance");
+        require(newFee < 5000, "!fee_too_high");
+        roboFee = newFee;
+    }
+
+    function setRewards(address _rewards) external {
+        require(msg.sender == governance, "!governance");
+        rewards = _rewards;
+    }
+
     function approveVoter(address _voter) external {
         require(msg.sender == governance, "!governance");
         voters[_voter] = true;
@@ -148,6 +165,7 @@ contract MultiStrategyProxy is Initializable {
         return assets * _totalSupply / _totalAssets;
     }
 
+
     function deposit(address _gauge, uint256 _assets) external {
         // Strategy must be approved
         address strategy = msg.sender;
@@ -160,7 +178,14 @@ contract MultiStrategyProxy is Initializable {
         address lpToken = IGauge(_gauge).lp_token();
         uint256 shares = convertToShares(_gauge, _assets);
         uint256 balBefore = IERC20(lpToken).balanceOf(address(proxy));
-        IERC20(lpToken).transferFrom(msg.sender, address(proxy), _assets);
+        emit DEBU("Before", balBefore);
+        emit DEBU("Assets", _assets);
+        emit DEBU("cTokenBal", IERC20(lpToken).balanceOf(strategy));
+        emit DEBU("approve", IERC20(lpToken).allowance(strategy, address(proxy)));
+        return;
+        IERC20(lpToken).safeTransferFrom(msg.sender, address(proxy), _assets);
+        emit DEBU("after", IERC20(lpToken).balanceOf(address(proxy)));
+        require(1 == 0, "HERE");
         require(IERC20(lpToken).balanceOf(address(proxy)) - balBefore == _assets);
 
         // Need to harvest before minting
@@ -211,14 +236,17 @@ contract MultiStrategyProxy is Initializable {
 
     //
     function withdrawAll(address _gauge) external returns (uint256) {
-        //TODO require GOV / strategy!
         return _withdraw(_gauge, balanceOf(_gauge, msg.sender), msg.sender);
     }
 
     // 
-    function withdraw(address _gauge, uint256 _assets) internal returns (uint256) {
-        //TODO require GOV / strategy!
+    function withdraw(address _gauge, uint256 _assets) external returns (uint256) {
         return _withdraw(_gauge, _assets, msg.sender);
+    }
+
+    // TODO remove
+    function mintHND(address _gauge) external {
+        proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
     }
 
     function _harvest(address _gauge) internal {
@@ -227,7 +255,9 @@ contract MultiStrategyProxy is Initializable {
         uint256 harvested = (IERC20(hnd).balanceOf(address(proxy))).sub(before);
 
         if (harvested > dust) {
-            _distributeHarvest(_gauge, harvested);
+            uint256 rewardsAmount = amount * roboFee / BASIS_PRECISION;
+            proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", rewards, rewardsAmount));
+            _distributeHarvest(_gauge, harvested - rewardsAmount);
         }
     }
 
@@ -240,7 +270,8 @@ contract MultiStrategyProxy is Initializable {
         for (uint i; i < strats.length; i++) {
             if (strats[i].shares > 0) {
                 uint256 amount = strats[i].shares.mul(_amount).div(totalSupply[_gauge]);
-                proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, amount));
+                //proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, amount)); OLD. Why always msg.sender? Should be strats[i].addr
+                proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", strats[i].addr, amount));
             }
         }
     }
@@ -294,6 +325,7 @@ contract MultiStrategyProxy is Initializable {
     }
 
     event DEBU(string s, uint256 x);
+    event DEBUBOOL(string s, bool x);
     function debu(address _gauge) external {
         uint256 before = IERC20(hnd).balanceOf(address(proxy));
         proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
