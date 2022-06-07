@@ -165,6 +165,9 @@ def hfrax_amount(hfrax):
     yield amount
 
 @pytest.fixture
+def minter(Minter):
+    yield Minter.at("0x42B458056f887Fd665ed6f160A59Afe932e1F559")
+@pytest.fixture
 def proxy(veHNDVoter, gov, oz):
     implementation = veHNDVoter.deploy({"from": gov})
     proxy_admin = oz.ProxyAdmin.deploy({"from": gov})
@@ -188,7 +191,7 @@ def multistrat_proxy(gov, proxy, MultiStrategyProxy):
 
 @pytest.fixture
 def husdc_gauge():
-    yield "0x110614276F7b9Ae8586a1C1D9Bc079771e2CE8cF"
+    yield "0x818b3dff96d01590Caf72965e6F50b24331EfdEC"
 
 @pytest.fixture
 def hfrax_gauge():

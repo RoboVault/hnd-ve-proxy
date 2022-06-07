@@ -18,9 +18,7 @@ import {CErc20I} from "./interfaces/CErc20I.sol";
 import {IUniswapV2Router02} from "./interfaces/IUniswapV2Router02.sol";
 
 import "./MultiStrategyProxy.sol";
-interface IERC20Extended is IERC20 {
-    function decimals() external view returns (uint8);
-}
+import "./interfaces/IERC20Extended.sol";
 
 
 // USDC     0x04068DA6C83AFCFA0e13ba15A6696662335D5B75
@@ -35,6 +33,7 @@ contract LenderStrategy is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
+    using SafeMath for uint8;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -94,6 +93,7 @@ contract LenderStrategy is BaseStrategy {
         want.safeApprove(_cToken, type(uint256).max);
         IERC20(_cToken).safeApprove(address(multiStratProxy.proxy()), type(uint256).max);
         IERC20(_cToken).safeApprove(address(multiStratProxy), type(uint256).max);
+        IERC20(hnd).safeApprove(spookyRouter, type(uint256).max);
     }
 
     function cloneStrategy(
@@ -137,7 +137,7 @@ contract LenderStrategy is BaseStrategy {
             return 0;
         }
         uint256 cTokensStaked = multiStratProxy.balanceOf(gauge, address(this)).mul(total).div(totalShares);
-        return cTokensStaked.mul(cToken.exchangeRateStored()) * 10 ** (cToken.decimals() - want.decimals());
+        return cTokensStaked.mul(cToken.exchangeRateStored()) / 1e18; // TODO check decimals
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
@@ -150,12 +150,6 @@ contract LenderStrategy is BaseStrategy {
     function adjustPosition(uint256 _debtOutstanding) internal override {
         if (emergencyExit) {
             return;
-        }
-        // Sell HND for want
-        uint256 _ib = IERC20(hnd).balanceOf(address(this));
-        if (_ib > minIbToSell) {
-            address[] memory path = getTokenOutPath(hnd, address(want));
-            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(_ib, uint256(0), path, address(this), block.timestamp);
         }
         // send all of our want tokens to be deposited
         uint256 toInvest = balanceOfWant();
@@ -176,9 +170,12 @@ contract LenderStrategy is BaseStrategy {
             uint256 _debtPayment
         )
     {
-        //TODO incentives
-        //TODO ask for incentives
-
+        // Sell HND for want
+        uint256 hnd_amount = IERC20(hnd).balanceOf(address(this));
+       if(hnd_amount > minIbToSell) {
+            address[] memory path = getTokenOutPath(hnd, address(want));    
+            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(hnd_amount, hnd_amount.mul(95).div(100), path, address(this), block.timestamp);
+       }
         uint256 assets = estimatedTotalAssets();
         uint256 wantBal = balanceOfWant();
 
@@ -262,6 +259,20 @@ contract LenderStrategy is BaseStrategy {
         }
     }
 
+    event DEBU(string s, uint256 x);
+    
+    function debugConvertFromUnderlying(uint256 amountOfUnderlying) public returns (uint256 balance) {
+        if (amountOfUnderlying == 0) {
+            balance = 0;
+        } else {
+            emit DEBU("amountOfUnderlying", amountOfUnderlying);
+            // 1cToken = 1 underlying * exchangeRateStored
+            balance = amountOfUnderlying.mul(1e18).div(cToken.exchangeRateStored());
+            emit DEBU("result", balance);
+            emit DEBU("exchangeRate", cToken.exchangeRateStored());
+
+        }
+    }
 
     function convertFromUnderlying(uint256 amountOfUnderlying) public view returns (uint256 balance) {
         if (amountOfUnderlying == 0) {

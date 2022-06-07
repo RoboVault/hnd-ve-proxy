@@ -19,13 +19,14 @@ def test_operation_single_strat(chain, deployed_vault, multistrat_proxy, husdc_g
     print("Vault amt after deposit:", usdc.balanceOf(deployed_vault))
     print("Balance of gauge", husdc.balanceOf(husdc_gauge))
     strategy.harvest()
-    print("Balance of gauge after", husdc.balanceOf(husdc_gauge))
-
+    print(strategy.balanceOfStaked())
     chain.sleep(3600 * 24)
     chain.mine() # sleeps for 1 day
-    multistrat_proxy.harvest(husdc_gauge)
-    strategy.harvest()
+    print("Balance of gauge afterafter", husdc.balanceOf(husdc_gauge))
 
+    multistrat_proxy.harvest(husdc_gauge)
+    
+    strategy.harvest()
 
     # All HND should be sold
     hnd_balance = hnd.balanceOf(strategy)

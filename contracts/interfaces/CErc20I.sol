@@ -25,4 +25,6 @@ interface CErc20I is CTokenI {
     ) external returns (uint256);
 
     function underlying() external view returns (address);
+
+    function decimals() external view returns (uint8);
 }

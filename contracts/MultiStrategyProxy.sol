@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { IGauge, IFeeDistribution } from "./interfaces/curve.sol";
 import { SafeProxy, IProxy } from "./interfaces/proxy.sol";
+import "./interfaces/IERC20Extended.sol";
 
 
 contract MultiStrategyProxy is Initializable {
@@ -59,7 +60,7 @@ contract MultiStrategyProxy is Initializable {
         rewards = _gov;
         proxy = IProxy(_proxy);
         hnd = address(0x10010078a54396F62c96dF8532dc2B4847d47ED3);
-        minter = address(0x42B458056f887Fd665ed6f160A59Afe932e1F559);
+        minter = address(0x2105dE165eD364919703186905B9BB5B8015F13c);
         gaugeController = address(0x89Aa51685a2B658be8a7b9C3Af70D66557544181);
     }
 
@@ -204,7 +205,9 @@ contract MultiStrategyProxy is Initializable {
 
         uint256 idx = findStrategy(_gauge, _strategy);
         require (idx != type(uint256).max, "!strategy");
-
+        emit DEBU("Assets", _assets);
+        emit DEBU("Shares", shares);
+        emit DEBU("Balance", strategies[_gauge][idx].shares);
         // check the strategy has enough balance
         require (strategies[_gauge][idx].shares >= shares);
         
@@ -245,9 +248,11 @@ contract MultiStrategyProxy is Initializable {
 
     function _harvest(address _gauge) internal {
         uint256 before = IERC20(hnd).balanceOf(address(proxy));
+        emit DEBU("HarvestBefore", before);
         proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
         uint256 harvested = (IERC20(hnd).balanceOf(address(proxy))).sub(before);
-
+        
+        emit DEBU("HarvestHarvested", harvested);
         if (harvested > dust) {
             uint256 rewardsAmount = harvested * roboFee / BASIS_PRECISION;
             proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", rewards, rewardsAmount));
@@ -261,10 +266,10 @@ contract MultiStrategyProxy is Initializable {
 
     function _distributeHarvest(address _gauge, uint256 _amount) internal {
         Strategy[] storage strats = strategies[_gauge];
-        uint256 totalSupply = totalSupply[_gauge];
+        uint256 total = totalSupply[_gauge];
         for (uint i; i < strats.length; i++) {
             if (strats[i].shares > 0) {
-                uint256 amount = strats[i].shares.mul(_amount).div(totalSupply);
+                uint256 amount = strats[i].shares.mul(_amount).div(total);
                 //proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, amount)); OLD. Why always msg.sender? Should be strats[i].addr
                 proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", strats[i].addr, amount));
             }
