@@ -38,7 +38,7 @@ contract LenderStrategy is BaseStrategy {
     /* ========== STATE VARIABLES ========== */
 
     // swap stuff
-    address internal constant spookyRouter = address(0xF491e7B69E4244ad4002BC14e878a34207E38c29);
+    IUniswapV2Router02 public spookyRouter = IUniswapV2Router02(0xF491e7B69E4244ad4002BC14e878a34207E38c29);
     address public constant wftm = address(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
     address public constant hnd = address(0x10010078a54396F62c96dF8532dc2B4847d47ED3);
     string internal stratName; // we use this for our strategy's name on cloning
@@ -93,7 +93,7 @@ contract LenderStrategy is BaseStrategy {
         want.safeApprove(_cToken, type(uint256).max);
         IERC20(_cToken).safeApprove(address(multiStratProxy.proxy()), type(uint256).max);
         IERC20(_cToken).safeApprove(address(multiStratProxy), type(uint256).max);
-        IERC20(hnd).safeApprove(spookyRouter, type(uint256).max);
+        IERC20(hnd).safeApprove(address(spookyRouter), type(uint256).max);
     }
 
     function cloneStrategy(
@@ -171,11 +171,12 @@ contract LenderStrategy is BaseStrategy {
         )
     {
         // Sell HND for want
-        uint256 hnd_amount = IERC20(hnd).balanceOf(address(this));
-       if(hnd_amount > minIbToSell) {
-            address[] memory path = getTokenOutPath(hnd, address(want));    
-            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(hnd_amount, hnd_amount.mul(95).div(100), path, address(this), block.timestamp);
-       }
+        uint256 hndAmount = IERC20(hnd).balanceOf(address(this));
+        if(hndAmount > minIbToSell) {
+                address[] memory path = getTokenOutPath(hnd, address(want));    
+                uint256 minOutAmount = spookyRouter.getAmountsOut(hndAmount, path)[path.length-1].mul(9800).div(10000); // TODO 2% slippage is ok?
+                spookyRouter.swapExactTokensForTokens(hndAmount, minOutAmount, path, address(this), block.timestamp);
+        }
         uint256 assets = estimatedTotalAssets();
         uint256 wantBal = balanceOfWant();
 
