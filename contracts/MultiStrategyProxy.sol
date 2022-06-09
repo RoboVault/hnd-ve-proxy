@@ -205,9 +205,6 @@ contract MultiStrategyProxy is Initializable {
 
         uint256 idx = findStrategy(_gauge, _strategy);
         require (idx != type(uint256).max, "!strategy");
-        emit DEBU("Assets", _assets);
-        emit DEBU("Shares", shares);
-        emit DEBU("Balance", strategies[_gauge][idx].shares);
         // check the strategy has enough balance
         require (strategies[_gauge][idx].shares >= shares);
         
@@ -243,11 +240,9 @@ contract MultiStrategyProxy is Initializable {
 
     function _harvest(address _gauge) internal {
         uint256 before = IERC20(hnd).balanceOf(address(proxy));
-        emit DEBU("HarvestBefore", before);
         proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
         uint256 harvested = (IERC20(hnd).balanceOf(address(proxy))).sub(before);
         
-        emit DEBU("HarvestHarvested", harvested);
         if (harvested > dust) {
             uint256 rewardsAmount = harvested * roboFee / BASIS_PRECISION;
             proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", rewards, rewardsAmount));
@@ -319,14 +314,4 @@ contract MultiStrategyProxy is Initializable {
         proxy.safeExecute(_token, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, IERC20(_token).balanceOf(address(proxy))));
     }
 
-    event DEBU(string s, uint256 x);
-    event DEBUBOOL(string s, bool x);
-    function debu(address _gauge) external {
-        uint256 before = IERC20(hnd).balanceOf(address(proxy));
-        proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
-        uint256 harvested = (IERC20(hnd).balanceOf(address(proxy))).sub(before);
-
-        emit DEBU("HND BALANCE ", IERC20(hnd).balanceOf(address(proxy)));
-        emit DEBU("HARVESTED ", harvested);
-    }
 }

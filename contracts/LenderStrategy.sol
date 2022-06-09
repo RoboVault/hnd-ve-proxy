@@ -263,21 +263,6 @@ contract LenderStrategy is BaseStrategy {
         }
     }
 
-    event DEBU(string s, uint256 x);
-    
-    function debugConvertFromUnderlying(uint256 amountOfUnderlying) public returns (uint256 balance) {
-        if (amountOfUnderlying == 0) {
-            balance = 0;
-        } else {
-            emit DEBU("amountOfUnderlying", amountOfUnderlying);
-            // 1cToken = 1 underlying * exchangeRateStored
-            balance = amountOfUnderlying.mul(1e18).div(cToken.exchangeRateStored());
-            emit DEBU("result", balance);
-            emit DEBU("exchangeRate", cToken.exchangeRateStored());
-
-        }
-    }
-
     function convertFromUnderlying(uint256 amountOfUnderlying) public view returns (uint256 balance) {
         if (amountOfUnderlying == 0) {
             balance = 0;
