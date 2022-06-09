@@ -7,7 +7,6 @@ def approve_strategies(mock_strategy_1, mock_strategy_2, multistrat_proxy, husdc
     husdc.approve(multistrat_proxy.address, husdc.balanceOf(mock_strategy_1.address), {"from":mock_strategy_1})
     husdc.approve(multistrat_proxy.address, husdc.balanceOf(mock_strategy_2.address), {"from":mock_strategy_2})
     
-
 def test_operation_single_strat(chain, deployed_vault, multistrat_proxy, husdc_gauge, gov, husdc, hnd, strategy, user, usdc_amount, usdc):
     # Approve strat
     multistrat_proxy.approveStrategy(husdc_gauge, strategy.address, {"from":gov})
@@ -29,16 +28,11 @@ def test_operation_single_strat(chain, deployed_vault, multistrat_proxy, husdc_g
 
     # All HND should be sold
     hnd_balance = hnd.balanceOf(strategy)
-    print("HND balance")
-    print(hnd_balance / 1e18)
-    
-    print(hnd_balance / (10 ** 18))
-    print(hnd_balance  / (10 ** hnd.decimals()))
     
     # Want should increase, hnd should be sold
     print("EstimatedTotalAssets", strategy.estimatedTotalAssets())
     assert usdc_amount < strategy.estimatedTotalAssets()
-    assert hnd_balance  / (10 ** hnd.decimals()) < 1
+    assert hnd_balance < HND_DUST
 
     # Try to withdraw everything
     deployed_vault.updateStrategyDebtRatio(strategy.address, 0, {"from": gov})

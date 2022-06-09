@@ -2,14 +2,19 @@ import pytest
 from brownie import interface
 from brownie import reverts
 
-def test_transfer_not_supported(vault, strategy, token, amount, user1, user2):
+@pytest.fixture
+def user2(accounts):
+    yield accounts[7]
 
-    user_balance_before = token.balanceOf(user1)
-    token.approve(vault.address, amount, {"from": user1})
-    vault.deposit(amount, {"from": user1})
+# TODO i'm not sure that some transaction should revert, @smoothbot?
+def test_transfer_not_supported(vault, strategy, usdc, usdc_amount, user, user2):
+    user1 = user
+    user_balance_before = usdc.balanceOf(user1)
+    usdc.approve(vault.address, usdc_amount, {"from": user1})
+    vault.deposit(usdc_amount, {"from": user1})
 
-    assert token.balanceOf(user1) == user_balance_before - amount 
-    assert vault.totalBalance() ==  amount
+    assert usdc.balanceOf(user1) == user_balance_before - usdc_amount 
+    assert vault.totalSupply() ==  usdc_amount
 
     with reverts():
         vault.transfer(user2, vault.balanceOf(user1), {'from': user1})
@@ -19,11 +24,11 @@ def test_transfer_not_supported(vault, strategy, token, amount, user1, user2):
         vault.transferFrom(user1, user2, vault.balanceOf(user1), {'from':user2})
 
     with reverts(): 
-        vault.withdraw(amount, {"from": user2})
+        vault.withdraw(usdc_amount, {"from": user2})
 
-    vault.withdraw(amount, {"from": user1})
+    vault.withdraw(usdc_amount, {"from": user1})
 
-    assert token.balanceOf(user1) == user_balance_before
+    assert usdc.balanceOf(user1) == user_balance_before
 
     with reverts(): 
-        vault.withdraw(amount, {"from": user1})
+        vault.withdraw(usdc_amount, {"from": user1})

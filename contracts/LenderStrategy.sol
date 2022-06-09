@@ -137,7 +137,10 @@ contract LenderStrategy is BaseStrategy {
             return 0;
         }
         uint256 cTokensStaked = multiStratProxy.balanceOf(gauge, address(this)).mul(total).div(totalShares);
-        return cTokensStaked.mul(cToken.exchangeRateStored()) / 1e18; // TODO check decimals
+        // This should work, but for usdc it does not. docs should be https://compound.finance/docs/ctokens#exchange-rate
+        //return cTokensStaked.mul(cToken.exchangeRateStored()).div(10 ** (IERC20Extended(address(want)).decimals().add(10))); // TODO check decimals
+        // ExchangeRate : The current exchange rate as an unsigned integer, scaled by 1 * 10^(18 - 8 + Underlying Token Decimals).
+        return cTokensStaked.mul(cToken.exchangeRateStored()).div(1e18);
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {

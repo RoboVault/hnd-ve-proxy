@@ -241,11 +241,6 @@ contract MultiStrategyProxy is Initializable {
         return _withdraw(_gauge, _assets, msg.sender);
     }
 
-    // TODO remove
-    function mintHND(address _gauge) external {
-        proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
-    }
-
     function _harvest(address _gauge) internal {
         uint256 before = IERC20(hnd).balanceOf(address(proxy));
         emit DEBU("HarvestBefore", before);

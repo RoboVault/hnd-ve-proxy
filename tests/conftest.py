@@ -3,17 +3,15 @@ from brownie import config, accounts, Contract
 
 
 # TODO tests
-# - FIX first test
 # - Test two strats together, profit 50/50
-# - Test two strats together, one with 100% allocation, one with 50% allocation, profit 67/33
-# - Test one strat usdc, one frax delayed
-# - Test one strat usdc, one frax together, profit % based on apr
+# TODO- Test two strats together, one with 100% allocation, one with 50% allocation, profit 67/33
+# TODO- Test one strat usdc, one frax delayed
+# TODO- Test one strat usdc, one frax together, profit % based on apr
 #       - How to pull apr?
-# - Test deposit, withdraw more than deposited (should fail), withdraw half (should succeed), withdraw all
-# - Same test deposit, but with usdc and frax
-# - Test strat deposit from not approved strat (should fail)
-# - Test strat deposit from paused strat (should fail)
-# - 
+# TODO- Test deposit, withdraw more than deposited (should fail), withdraw half (should succeed), withdraw all
+# TODO- Same test deposit, but with usdc and frax
+# TODO- Test strat deposit from not approved strat (should fail)
+# TODO- Test strat deposit from paused strat (should fail)
 
 """ USEFUL COMMANDS (for cli)
 
@@ -73,8 +71,17 @@ def usdc_whale(accounts):
     yield acc
 
 @pytest.fixture
+def frax_whale(accounts):
+    acc = accounts.at("0x7a656B342E14F745e2B164890E88017e27AE7320", force=True) # 
+    yield acc
+
+@pytest.fixture
 def usdc(interface):
     yield interface.IERC20Extended("0x04068DA6C83AFCFA0e13ba15A6696662335D5B75")
+
+@pytest.fixture
+def frax(interface):
+    yield interface.IERC20Extended("0xdc301622e621166BD8E82f2cA0A26c13Ad0BE355")
 
 @pytest.fixture
 def usdc_amount(usdc, usdc_whale, user):
@@ -82,6 +89,11 @@ def usdc_amount(usdc, usdc_whale, user):
 
     usdc.transfer(user, amount, {"from":usdc_whale})
 
+    yield amount
+
+@pytest.fixture
+def frax_amount(frax, frax_whale, user):
+    amount = 10_000 * 10 ** frax.decimals()
     yield amount
 
 @pytest.fixture
@@ -138,11 +150,6 @@ def husdc_whale(accounts):
     yield acc
 
 @pytest.fixture
-def hfrax_whale(accounts):
-    acc = accounts.at("0x46b75f2d0b91d5147412d50f69b96119f5577e1b", force=True) # 
-    yield acc
-
-@pytest.fixture
 def husdc(interface):
     yield interface.IERC20Extended("0x243E33aa7f6787154a8E59d3C27a66db3F8818ee")
 
@@ -154,15 +161,7 @@ def hfrax(interface):
 def hnd(interface):
     yield interface.IERC20Extended("0x10010078a54396F62c96dF8532dc2B4847d47ED3")
 
-@pytest.fixture
-def husdc_amount(husdc):
-    amount = 10_000 * 10 ** husdc.decimals()
-    yield amount
 
-@pytest.fixture
-def hfrax_amount(hfrax):
-    amount = 10_000 * 10 ** hfrax.decimals()
-    yield amount
 
 @pytest.fixture
 def minter(Minter):
@@ -195,31 +194,11 @@ def husdc_gauge():
 
 @pytest.fixture
 def hfrax_gauge():
-    yield "0x2c7a9d9919f042C4C120199c69e126124d09BE7c"
+    yield "0x7BFE7b45c8019DEDc66c695Ac70b8fc2c0421584"
 
 @pytest.fixture
 def oz(pm):
     yield pm(config["dependencies"][0])
-
-# Accounts 6-7-8 are used as "mock strategies"
-
-@pytest.fixture
-def mock_strategy_1(husdc_whale, husdc, accounts, husdc_amount):
-    husdc.approve(accounts[6], husdc_amount, {"from": husdc_whale})
-    husdc.transfer(accounts[6], husdc_amount, {"from": husdc_whale}) 
-    yield accounts[6]
-
-@pytest.fixture
-def mock_strategy_2(husdc_whale, husdc, accounts, husdc_amount):
-    husdc.approve(accounts[7], husdc_amount, {"from": husdc_whale})
-    husdc.transfer(accounts[7], husdc_amount, {"from": husdc_whale})
-    yield accounts[7]
-
-@pytest.fixture
-def mock_strategy_frax(hfrax_whale, hfrax, accounts, hfrax_amount):
-    hfrax.approve(accounts[8], hfrax_amount, {"from": hfrax_whale})
-    hfrax.transfer(accounts[8], hfrax_amount, {"from": hfrax_whale})
-    yield accounts[8]
 
 
 # Function scoped isolation fixture to enable xdist.
