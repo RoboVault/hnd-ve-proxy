@@ -165,7 +165,7 @@ def hnd(interface):
 
 @pytest.fixture
 def minter(Minter):
-    yield Minter.at("0x42B458056f887Fd665ed6f160A59Afe932e1F559")
+    yield Minter.at("0x2105dE165eD364919703186905B9BB5B8015F13c")
 @pytest.fixture
 def proxy(veHNDVoter, gov, oz):
     implementation = veHNDVoter.deploy({"from": gov})

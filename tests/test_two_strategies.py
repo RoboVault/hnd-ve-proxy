@@ -2,6 +2,8 @@ import pytest
 from brownie import config, accounts, Contract
 from _useful_methods import REL_APPROX, HND_DUST
 
+
+@pytest.fixture
 def second_vault_usdc(pm, gov, usdc, chain, usdc_amount, usdc_whale):
     Vault = pm(config["dependencies"][1]).Vault
     vault = gov.deploy(Vault)
@@ -13,6 +15,8 @@ def second_vault_usdc(pm, gov, usdc, chain, usdc_amount, usdc_whale):
     chain.sleep(1)
     yield vault
 
+
+@pytest.fixture
 def second_strategy_usdc(
     gov,
     LenderStrategy,
@@ -29,7 +33,7 @@ def second_strategy_usdc(
 
 
 
-@pytest.mark.skip(reason="Testing frax")
+# @pytest.mark.skip(reason="Testing frax")
 def test_two_deposits(chain, deployed_vault, multistrat_proxy, husdc_gauge, gov, husdc, hnd, strategy, user, usdc_amount, usdc, second_vault_usdc, second_strategy_usdc, usdc_whale):
     # Approve strat
     multistrat_proxy.approveStrategy(husdc_gauge, strategy.address, {"from":gov})
@@ -47,14 +51,16 @@ def test_two_deposits(chain, deployed_vault, multistrat_proxy, husdc_gauge, gov,
     multistrat_proxy.harvest(husdc_gauge)
     # Rewards should be the same
     pytest.approx(hnd.balanceOf(strategy), rel=REL_APPROX) == hnd.balanceOf(second_strategy_usdc)
+    print("HND BALANCE:", hnd.balanceOf(strategy))
+    print("SECOND HND BALANCE:", hnd.balanceOf(second_strategy_usdc))
     strategy.harvest()
     second_strategy_usdc.harvest()
+    print("2HND BALANCE:", hnd.balanceOf(strategy))
+    print("2SECOND HND BALANCE:", hnd.balanceOf(second_strategy_usdc))
     pytest.approx(strategy.estimatedTotalAssets(), rel=REL_APPROX) == second_strategy_usdc.estimatedTotalAssets()
     assert strategy.estimatedTotalAssets() > usdc_amount
     assert second_strategy_usdc.estimatedTotalAssets() > usdc_amount
 
-
-@pytest.mark.skip(reason="Testing frax")
 def test_delayed_deposits(chain, deployed_vault, multistrat_proxy, husdc_gauge, gov, husdc, hnd, strategy, user, usdc_amount, usdc, second_vault_usdc, second_strategy_usdc, usdc_whale):
     # Approve strat
     multistrat_proxy.approveStrategy(husdc_gauge, strategy.address, {"from":gov})

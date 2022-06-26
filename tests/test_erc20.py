@@ -7,6 +7,9 @@ def user2(accounts):
     yield accounts[7]
 
 # TODO i'm not sure that some transaction should revert, @smoothbot?
+
+
+#@pytest.mark.skip(reason="Should ask smooth")
 def test_transfer_not_supported(vault, strategy, usdc, usdc_amount, user, user2):
     user1 = user
     user_balance_before = usdc.balanceOf(user1)
