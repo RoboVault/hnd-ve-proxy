@@ -216,7 +216,6 @@ contract MultiStrategyProxy is Initializable {
         _burn(_gauge, idx, shares);
 
         // withdraw lp tokens from the gauge
-        // TODO check. This looks wrong. Especially the sub
         uint256 _balance = IERC20(lpToken).balanceOf(address(proxy));
         proxy.safeExecute(_gauge, 0, abi.encodeWithSignature("withdraw(uint256)", _assets));
         _balance = IERC20(lpToken).balanceOf(address(proxy)).sub(_balance);
