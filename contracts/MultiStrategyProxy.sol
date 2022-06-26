@@ -4,9 +4,9 @@ pragma solidity ^0.8.11;
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { IGauge, IFeeDistribution } from "./interfaces/curve.sol";
-import { SafeProxy, IProxy } from "./interfaces/proxy.sol";
-import "./interfaces/IERC20Extended.sol";
+import { IGauge, IFeeDistribution } from "../interfaces/curve.sol";
+import { SafeProxy, IProxy } from "../interfaces/IProxy.sol";
+import "../interfaces/IERC20Extended.sol";
 
 
 contract MultiStrategyProxy is Initializable {
@@ -146,6 +146,7 @@ contract MultiStrategyProxy is Initializable {
     }
 
     function lock() external {
+        require(msg.sender == governance, "!governance");
         uint256 amount = IERC20(hnd).balanceOf(address(proxy));
         if (amount > 0) proxy.increaseAmount(amount);
     }
@@ -215,6 +216,7 @@ contract MultiStrategyProxy is Initializable {
         _burn(_gauge, idx, shares);
 
         // withdraw lp tokens from the gauge
+        // TODO check. This looks wrong. Especially the sub
         uint256 _balance = IERC20(lpToken).balanceOf(address(proxy));
         proxy.safeExecute(_gauge, 0, abi.encodeWithSignature("withdraw(uint256)", _assets));
         _balance = IERC20(lpToken).balanceOf(address(proxy)).sub(_balance);
@@ -246,7 +248,7 @@ contract MultiStrategyProxy is Initializable {
         if (harvested > dust) {
             uint256 rewardsAmount = harvested * roboFee / BASIS_PRECISION;
             proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", rewards, rewardsAmount));
-            _distributeHarvest(_gauge, harvested - rewardsAmount);
+            _distributeHarvest(_gauge, harvested.sub(rewardsAmount));
         }
     }
 

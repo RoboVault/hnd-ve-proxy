@@ -14,11 +14,11 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {CErc20I} from "./interfaces/CErc20I.sol";
-import {IUniswapV2Router02} from "./interfaces/IUniswapV2Router02.sol";
+import {CErc20I} from "../interfaces/CErc20I.sol";
+import {IUniswapV2Router02} from "../interfaces/IUniswapV2Router02.sol";
 
 import "./MultiStrategyProxy.sol";
-import "./interfaces/IERC20Extended.sol";
+import "../interfaces/IERC20Extended.sol";
 
 
 // USDC     0x04068DA6C83AFCFA0e13ba15A6696662335D5B75
@@ -176,9 +176,9 @@ contract LenderStrategy is BaseStrategy {
         // Sell HND for want
         uint256 hndAmount = IERC20(hnd).balanceOf(address(this));
         if(hndAmount > minIbToSell) {
-                address[] memory path = getTokenOutPath(hnd, address(want));    
-                uint256 minOutAmount = spookyRouter.getAmountsOut(hndAmount, path)[path.length-1].mul(9800).div(10000); // TODO 2% slippage is ok?
-                spookyRouter.swapExactTokensForTokens(hndAmount, minOutAmount, path, address(this), block.timestamp);
+            address[] memory path = getTokenOutPath(hnd, address(want));    
+            uint256 minOutAmount = spookyRouter.getAmountsOut(hndAmount, path)[path.length-1].mul(9800).div(10000); // TODO 2% slippage is ok?
+            spookyRouter.swapExactTokensForTokens(hndAmount, minOutAmount, path, address(this), block.timestamp);
         }
         uint256 assets = estimatedTotalAssets();
         uint256 wantBal = balanceOfWant();
