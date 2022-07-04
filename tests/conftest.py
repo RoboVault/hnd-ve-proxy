@@ -2,17 +2,6 @@ import pytest
 from brownie import config, accounts, Contract
 
 
-# TODO tests
-# - Test two strats together, profit 50/50
-# TODO- Test two strats together, one with 100% allocation, one with 50% allocation, profit 67/33
-# TODO- Test one strat usdc, one frax delayed
-# TODO- Test one strat usdc, one frax together, profit % based on apr
-#       - How to pull apr?
-# TODO- Test deposit, withdraw more than deposited (should fail), withdraw half (should succeed), withdraw all
-# TODO- Same test deposit, but with usdc and frax
-# TODO- Test strat deposit from not approved strat (should fail)
-# TODO- Test strat deposit from paused strat (should fail)
-
 """ USEFUL COMMANDS (for cli)
 
 px = multistrat_proxy.proxy()
