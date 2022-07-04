@@ -50,18 +50,19 @@ def main():
 
     oz = project.load(Path.home() / ".brownie" / "packages" / config["dependencies"][0])
 
-    implementation = veHNDVoter.deploy({"from": dev})
-    proxy_admin = oz.ProxyAdmin.deploy({"from": dev})
+    implementation = veHNDVoter.deploy({"from": dev}, publish_source=True)
+    proxy_admin = oz.ProxyAdmin.deploy({"from": dev}, publish_source=True)
     box_encoded_initializer_function = encode_function_data(implementation.initialize, dev.address)
     proxy = oz.TransparentUpgradeableProxy.deploy(
         implementation,
         proxy_admin,
         box_encoded_initializer_function,
         {"from": dev},
+        publish_source=True
     )
     
     proxy_voter = Contract.from_abi("veHNDVoter", proxy, veHNDVoter.abi)
-    multistrategy = MultiStrategyProxy.deploy({"from": dev })
+    multistrategy = MultiStrategyProxy.deploy({"from": dev }, publish_source=True)
     multistrategy.initialize(dev, proxy)
     proxy_voter.setStrategy(multistrategy.address, {"from": dev})
 
@@ -69,4 +70,5 @@ def main():
     print("proxy_voter ", proxy_voter.address)
     print("multistrategy ", multistrategy.address)
     print("implementation ", implementation.address)
+    print("proxy_admin ", proxy_admin.address)
     
