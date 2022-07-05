@@ -81,9 +81,10 @@ def frax(interface):
     yield interface.IERC20Extended("0xdc301622e621166BD8E82f2cA0A26c13Ad0BE355")
 
 @pytest.fixture
-def usdc_amount(usdc, usdc_whale, user):
+def usdc_amount(usdc, usdc_whale, user, user2):
     amount = 10_000 * 10 ** usdc.decimals()
     usdc.transfer(user, amount, {"from":usdc_whale})
+    usdc.transfer(user2, amount, {"from":usdc_whale})
     yield amount
 
 @pytest.fixture
