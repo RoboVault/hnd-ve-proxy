@@ -4,9 +4,9 @@ pragma solidity ^0.8.11;
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { IGauge, IFeeDistribution } from "../interfaces/curve.sol";
-import { SafeProxy, IProxy } from "../interfaces/IProxy.sol";
-import "../interfaces/IERC20Extended.sol";
+import { IGauge, IFeeDistribution } from "./interfaces/curve.sol";
+import { SafeProxy, IProxy } from "./interfaces/IProxy.sol";
+import "./interfaces/IERC20Extended.sol";
 
 
 contract MultiStrategyProxy is Initializable {
@@ -167,7 +167,6 @@ contract MultiStrategyProxy is Initializable {
         if (_totalAssets == 0 || _totalSupply == 0) return assets;
         return assets * _totalSupply / _totalAssets;
     }
-
 
     function deposit(address _gauge, uint256 _assets) external {
         // Strategy must be approved

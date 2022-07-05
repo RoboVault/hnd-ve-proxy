@@ -16,7 +16,7 @@ compiler:
   solc:
     version: 0.8.11
     optimize: true
-    runs: 1000
+    runs: 200
     remappings:
       - '@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.5.0'
       - '@yearnvaults=iearn-finance/yearn-vaults@0.4.3'

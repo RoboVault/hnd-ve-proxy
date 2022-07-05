@@ -45,10 +45,18 @@ def encode_function_data(initializer=None, *args):
 @pytest.fixture
 def gov(accounts):
     yield accounts[0]
+    
+@pytest.fixture
+def comptroller(interface):
+    yield interface.ComptrollerInterface("0x21A4961B11c940fbeF57b1EB64FD646c880377e4")
 
 @pytest.fixture
 def user(accounts):
     yield accounts[2]
+    
+@pytest.fixture
+def user2(accounts):
+    yield accounts[3]
     
 @pytest.fixture
 def rewards(accounts):
@@ -75,9 +83,7 @@ def frax(interface):
 @pytest.fixture
 def usdc_amount(usdc, usdc_whale, user):
     amount = 10_000 * 10 ** usdc.decimals()
-
     usdc.transfer(user, amount, {"from":usdc_whale})
-
     yield amount
 
 @pytest.fixture
@@ -85,66 +91,20 @@ def frax_amount(frax, frax_whale, user):
     amount = 10_000 * 10 ** frax.decimals()
     yield amount
 
-@pytest.fixture
-def LenderStrategy(LenderStrategy):
-    yield LenderStrategy
 
-@pytest.fixture
-def vault(pm, gov, usdc):
-    Vault = pm(config["dependencies"][1]).Vault
-    vault = gov.deploy(Vault)
-    vault.initialize(usdc, gov, gov, "TestVault", "testUSDC", gov)
-    vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
-    vault.setManagement(gov, {"from": gov})
-    yield vault
-
-@pytest.fixture
-def strategy(
-    gov,
-    LenderStrategy,
-    vault,
-    multistrat_proxy,
-    husdc_gauge,
-    husdc
-):
-    strategy = gov.deploy(LenderStrategy, vault, "Lender", multistrat_proxy.address, husdc_gauge, husdc.address)
-    strategy.setKeeper(gov)
-
-    vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
-    yield strategy
-
-
-@pytest.fixture
-def deployed_vault(
-    chain,
-    usdc,
-    vault,
-    user,
-    usdc_amount
-):
-    # Deposit to the vault
-    usdc.approve(vault.address, usdc_amount, {"from": user})
-    print("Amount: ", usdc_amount)
-    print("User: ", user)
-    # harvest
-    chain.sleep(1)
-
-    print("Vault: ", usdc.balanceOf(vault.address))
-    print("Strategy: ", usdc.balanceOf(usdc.address))
-    yield vault
-
-@pytest.fixture
-def husdc_whale(accounts):
-    acc = accounts.at("0x154001A2F9f816389b2F6D9E07563cE0359D813D", force=True) # 
-    yield acc
+# @pytest.fixture
+# def husdc_whale(user, accounts, comtroller):
+    
+#     acc = accounts.at("0x154001A2F9f816389b2F6D9E07563cE0359D813D", force=True) # 
+#     yield acc
 
 @pytest.fixture
 def husdc(interface):
-    yield interface.IERC20Extended("0x243E33aa7f6787154a8E59d3C27a66db3F8818ee")
+    yield interface.CTokenI("0x243E33aa7f6787154a8E59d3C27a66db3F8818ee")
 
 @pytest.fixture
 def hfrax(interface):
-    yield interface.IERC20Extended("0xb4300e088a3AE4e624EE5C71Bc1822F68BB5f2bc")
+    yield interface.CTokenI("0xb4300e088a3AE4e624EE5C71Bc1822F68BB5f2bc")
 
 @pytest.fixture
 def hnd(interface):
