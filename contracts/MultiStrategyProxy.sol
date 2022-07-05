@@ -27,14 +27,14 @@ contract MultiStrategyProxy is Initializable {
     address public gaugeController;
     address public governance;
     address public pendingGovernance;
-    address public feeDistribution;// = FeeDistribution(0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc);
+    address public feeDistribution;
     address public rewards;
-    uint256 dust = 1e12;
+    uint256 public dust;
     
-    uint256 constant BASIS_PRECISION = 10000;
-    uint256 public roboFee = 1000; // 10% of HND goes to `rewards` to increase the lock
+    uint256 public BASIS_PRECISION;
+    uint256 public fee;
 
-    mapping(address => Strategy[]) strategies;
+    mapping(address => Strategy[]) public strategies;
     mapping(address => uint256) public totalSupply;
     mapping(address => bool) public voters;
 
@@ -62,6 +62,9 @@ contract MultiStrategyProxy is Initializable {
         hnd = address(0x10010078a54396F62c96dF8532dc2B4847d47ED3);
         minter = address(0x2105dE165eD364919703186905B9BB5B8015F13c);
         gaugeController = address(0x89Aa51685a2B658be8a7b9C3Af70D66557544181);
+        BASIS_PRECISION = 1000;
+        fee = 0;
+        dust = 1e12;
     }
 
     function setGovernance(address _governance) external {
@@ -102,7 +105,7 @@ contract MultiStrategyProxy is Initializable {
         uint256 idx = findStrategy(_gauge, _strategy);
         require (idx != type(uint256).max, "Strategy not found");
         require (strategies[_gauge][idx].shares == 0 || _force, "Strategy balance non-zero");
-        strategies[_gauge][idx] = strategies[_gauge][strategies[_gauge].length];
+        strategies[_gauge][idx] = strategies[_gauge][strategies[_gauge].length - 1];
         strategies[_gauge].pop();
         emit StrategyRevoked(_gauge, _strategy);
     }
@@ -127,8 +130,8 @@ contract MultiStrategyProxy is Initializable {
 
     function setRoboFee(uint256 newFee) external {
         require(msg.sender == governance, "!governance");
-        require(newFee < 5000, "!fee_too_high");
-        roboFee = newFee;
+        require(newFee <= 5000, "!fee_too_high");
+        fee = newFee;
     }
 
     function setRewards(address _rewards) external {
@@ -245,7 +248,7 @@ contract MultiStrategyProxy is Initializable {
         uint256 harvested = (IERC20(hnd).balanceOf(address(proxy))).sub(before);
         
         if (harvested > dust) {
-            uint256 rewardsAmount = harvested * roboFee / BASIS_PRECISION;
+            uint256 rewardsAmount = harvested * fee / BASIS_PRECISION;
             proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", rewards, rewardsAmount));
             _distributeHarvest(_gauge, harvested.sub(rewardsAmount));
         }

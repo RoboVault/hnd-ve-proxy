@@ -3,7 +3,6 @@ from brownie import config, accounts, Contract
 from _useful_methods import REL_APPROX, HND_DUST
 
 def fund_user(user_x, usdc_whale, husdc, usdc, amount):
-    amount = usdc.balanceOf(user_x)
     usdc.approve(husdc, amount, {'from': user_x})
     husdc.mint(amount, {'from': user_x})
     assert husdc.balanceOf(user_x) > 0
@@ -74,13 +73,13 @@ def test_two_non_equal_deposits(chain, multistrat_proxy, husdc_gauge, gov, husdc
     hnd_user1_balance_before = hnd.balanceOf(user)
     hnd_user2_balance_before = hnd.balanceOf(user2)
     multistrat_proxy.harvest(husdc_gauge, {'from':user})
-    hnd_balance_after = hnd.balanceOf(user)
     hnd_user1_balance_after = hnd.balanceOf(user)
     hnd_user2_balance_after = hnd.balanceOf(user2)
     print('HND Balance before {0} {1}'.format(hnd_user1_balance_before, hnd_user2_balance_before))
     print('HND Balance after {0} {1}'.format(hnd_user1_balance_after, hnd_user2_balance_after))
     assert hnd_user1_balance_before < hnd_user1_balance_after
     assert hnd_user2_balance_before < hnd_user2_balance_after
+    assert pytest.approx(hnd_user2_balance_after * 2, rel=1e-4) == hnd_user1_balance_after
 
 
     
