@@ -100,16 +100,17 @@ contract MultiStrategyProxy is Initializable {
     function revokeStrategy(address _gauge, address _strategy, bool _force) external {
         require(msg.sender == governance, "!governance");
         uint256 idx = findStrategy(_gauge, _strategy);
-        require (idx == type(uint256).max, "Strategy not found");
+        require (idx != type(uint256).max, "Strategy not found");
         require (strategies[_gauge][idx].shares == 0 || _force, "Strategy balance non-zero");
         strategies[_gauge][idx] = strategies[_gauge][strategies[_gauge].length];
         strategies[_gauge].pop();
+        emit StrategyRevoked(_gauge, _strategy);
     }
 
     function pauseStrategy(address _gauge, address _strategy) external {
         require(msg.sender == governance, "!governance");
         uint256 idx = findStrategy(_gauge, _strategy);
-        require (idx == type(uint256).max, "Strategy not found");
+        require (idx != type(uint256).max, "Strategy not found");
         require (!strategies[_gauge][idx].isPaused, "Strategy already paused");
         strategies[_gauge][idx].isPaused = true;
         emit StrategyPaused(_gauge, _strategy);           
