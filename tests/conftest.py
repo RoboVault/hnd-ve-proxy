@@ -12,15 +12,6 @@ comptroller.transferAllowed(husdc.address, strategy.address, px, 100, {"from": m
 husdc.transferFrom(strategy, prx, 100, {"from": multistrat_proxy})
 """
 
-# QUESTIONS / THINGS THAT I HAVE CHANGED
-# - Multistrat deposit requires the strategy to be paused?
-#       Changed from
-#           require (strategies[_gauge][idx].isPaused, "!paused"); 
-#       to
-#           require (!strategies[_gauge][idx].isPaused, "!paused"); 
-# - Anyone can call harvest(). Is this intended? -> in any case, they could call harvest by depositing/withdrawing something in any strat
-# - Do we need an emergencyExit function? Or a pause function for the whole MultiStrategy? (retire everything from hnd and return want to the strategist?)
-# - proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, amount)); OLD. Why always msg.sender? Should be strats[i].addr -> changed with strats[i].addr
 def encode_function_data(initializer=None, *args):
     """Encodes the function call so we can work with an initializer.
 
