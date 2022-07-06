@@ -30,6 +30,7 @@ contract MultiStrategyProxy is Initializable {
     address public feeDistribution;
     address public rewards;
     uint256 public dust;
+    uint256 public lastTimeCursor;
     
     uint256 public BASIS_PRECISION;
     uint256 public fee;
@@ -45,7 +46,6 @@ contract MultiStrategyProxy is Initializable {
     event StrategyUnpaused(address indexed _gauge, address indexed _strategy);
     event Transfer(address indexed _gauge, address indexed from, address indexed to, uint256 value);
 
-    uint256 lastTimeCursor;
 
     constructor() {
         governance = msg.sender;
@@ -72,24 +72,10 @@ contract MultiStrategyProxy is Initializable {
         pendingGovernance = _governance;
     }
 
-    function setDust(uint256 _dust) external {
-        require(msg.sender == governance, "!governance");
-        dust = _dust;
-    }
-
     function acceptGovernance() external {
         require(msg.sender == pendingGovernance, "!pendingGovernance");
         governance = pendingGovernance;
         pendingGovernance = address(0);
-    }
-
-    function findStrategy(address _gauge, address _strategy) public view returns (uint256) {
-        Strategy[] storage strats = strategies[_gauge];
-        for (uint i; i < strats.length; i++) {
-            if (strats[i].addr == _strategy)
-                return i;
-        }
-        return type(uint256).max;
     }
 
     function approveStrategy(address _gauge, address _strategy) external {
@@ -128,50 +114,6 @@ contract MultiStrategyProxy is Initializable {
         emit StrategyUnpaused(_gauge, _strategy);           
     }
 
-    function setRoboFee(uint256 newFee) external {
-        require(msg.sender == governance, "!governance");
-        require(newFee <= 5000, "!fee_too_high");
-        fee = newFee;
-    }
-
-    function setRewards(address _rewards) external {
-        require(msg.sender == governance, "!governance");
-        rewards = _rewards;
-    }
-
-    function approveVoter(address _voter) external {
-        require(msg.sender == governance, "!governance");
-        voters[_voter] = true;
-    }
-
-    function revokeVoter(address _voter) external {
-        require(msg.sender == governance, "!governance");
-        voters[_voter] = false;
-    }
-
-    function lock() external {
-        require(msg.sender == governance, "!governance");
-        uint256 amount = IERC20(hnd).balanceOf(address(proxy));
-        if (amount > 0) proxy.increaseAmount(amount);
-    }
-
-    function vote(address _gauge, uint256 _amount) public {
-        require(voters[msg.sender], "!voter");
-        proxy.safeExecute(gaugeController, 0, abi.encodeWithSignature("vote_for_gauge_weights(address,uint256)", _gauge, _amount));
-    }
-
-    function totalAssets(address _gauge) public view returns (uint256) {
-        return IERC20(_gauge).balanceOf(address(proxy));
-    }
-
-    // assets : totalAssets = shares : totalSupply
-    function convertToShares(address _gauge, uint256 assets) public view returns (uint256) {
-        uint256 _totalSupply = totalSupply[_gauge];
-        uint256 _totalAssets = totalAssets(_gauge);
-        if (_totalAssets == 0 || _totalSupply == 0) return assets;
-        return assets * _totalSupply / _totalAssets;
-    }
-
     function deposit(address _gauge, uint256 _assets) external {
         // Strategy must be approved
         address strategy = msg.sender;
@@ -197,6 +139,117 @@ contract MultiStrategyProxy is Initializable {
         proxy.safeExecute(lpToken, 0, abi.encodeWithSignature("approve(address,uint256)", _gauge, 0));
         proxy.safeExecute(lpToken, 0, abi.encodeWithSignature("approve(address,uint256)", _gauge, _assets));
         proxy.safeExecute(_gauge, 0, abi.encodeWithSignature("deposit(uint256)", _assets));
+    }
+
+    //
+    function withdrawAll(address _gauge) external returns (uint256) {
+        return _withdraw(_gauge, balanceOf(_gauge, msg.sender), msg.sender);
+    }
+
+    // 
+    function withdraw(address _gauge, uint256 _assets) external returns (uint256) {
+        return _withdraw(_gauge, _assets, msg.sender);
+    }
+
+    function harvest(address _gauge) external {
+        _harvest(_gauge);
+    }
+
+    function setDust(uint256 _dust) external {
+        require(msg.sender == governance, "!governance");
+        dust = _dust;
+    }
+
+    function setFee(uint256 newFee) external {
+        require(msg.sender == governance, "!governance");
+        require(newFee <= 5000, "!fee_too_high");
+        fee = newFee;
+    }
+
+    function setRewards(address _rewards) external {
+        require(msg.sender == governance, "!governance");
+        rewards = _rewards;
+    }
+
+    function setfeeDistribution(address _feeDistribution) external {
+        require(msg.sender == governance, "!governance");
+        feeDistribution = _feeDistribution;
+    }
+
+    function lock() external {
+        require(msg.sender == governance, "!governance");
+        uint256 amount = IERC20(hnd).balanceOf(address(proxy));
+        if (amount > 0) proxy.increaseAmount(amount);
+    }
+
+    // veHND holders do not currently share in fee revenue. 
+    // Putting this as a placehold if they do in the future
+    function claimVeHNDRewards(address recipient) external {
+        require(msg.sender == governance, "!governance");
+        if (block.timestamp < lastTimeCursor.add(604800)) return;
+
+        address p = address(proxy);
+        IFeeDistribution(feeDistribution).claim_many([p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p]);
+        lastTimeCursor = IFeeDistribution(feeDistribution).time_cursor_of(address(proxy));
+    }
+
+    function claimRewards(address _gauge, address _token) external {
+        require(governance == msg.sender, "!governance");
+        IGauge(_gauge).claim_rewards(address(proxy));
+        proxy.safeExecute(_token, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, IERC20(_token).balanceOf(address(proxy))));
+    }
+
+    function approveVoter(address _voter) external {
+        require(msg.sender == governance, "!governance");
+        voters[_voter] = true;
+    }
+
+    function revokeVoter(address _voter) external {
+        require(msg.sender == governance, "!governance");
+        voters[_voter] = false;
+    }
+
+    function vote(address _gauge, uint256 _amount) external {
+        require(voters[msg.sender], "!voter");
+        proxy.safeExecute(gaugeController, 0, abi.encodeWithSignature("vote_for_gauge_weights(address,uint256)", _gauge, _amount));
+    }
+
+    function sweep(address _token) external {
+        require(msg.sender == governance, "!governance");
+        IERC20(_token).safeTransfer(governance, IERC20(_token).balanceOf(address(this)));
+    }
+
+    function sweepProxy(address _token) external {
+        require(msg.sender == governance, "!governance");
+        proxy.safeExecute(_token, 0, abi.encodeWithSignature("transfer(address,uint256)", governance, IERC20(_token).balanceOf(address(proxy))));
+    }
+
+
+    function balanceOf(address _gauge, address _strategy) public view returns (uint256) {
+        uint256 idx = findStrategy(_gauge, _strategy);
+        require (idx != type(uint256).max, "!strategy");
+        return strategies[_gauge][idx].shares;
+    }
+
+    function findStrategy(address _gauge, address _strategy) public view returns (uint256) {
+        Strategy[] storage strats = strategies[_gauge];
+        for (uint i; i < strats.length; i++) {
+            if (strats[i].addr == _strategy)
+                return i;
+        }
+        return type(uint256).max;
+    }
+
+    function totalAssets(address _gauge) public view returns (uint256) {
+        return IERC20(_gauge).balanceOf(address(proxy));
+    }
+
+    // assets : totalAssets = shares : totalSupply
+    function convertToShares(address _gauge, uint256 assets) public view returns (uint256) {
+        uint256 _totalSupply = totalSupply[_gauge];
+        uint256 _totalAssets = totalAssets(_gauge);
+        if (_totalAssets == 0 || _totalSupply == 0) return assets;
+        return assets * _totalSupply / _totalAssets;
     }
 
     function _withdraw(
@@ -226,22 +279,6 @@ contract MultiStrategyProxy is Initializable {
         return _balance;
     }
 
-    function balanceOf(address _gauge, address _strategy) public view returns (uint256) {
-        uint256 idx = findStrategy(_gauge, _strategy);
-        require (idx != type(uint256).max, "!strategy");
-        return strategies[_gauge][idx].shares;
-    }
-
-    //
-    function withdrawAll(address _gauge) external returns (uint256) {
-        return _withdraw(_gauge, balanceOf(_gauge, msg.sender), msg.sender);
-    }
-
-    // 
-    function withdraw(address _gauge, uint256 _assets) external returns (uint256) {
-        return _withdraw(_gauge, _assets, msg.sender);
-    }
-
     function _harvest(address _gauge) internal {
         uint256 before = IERC20(hnd).balanceOf(address(proxy));
         proxy.safeExecute(minter, 0, abi.encodeWithSignature("mint(address)", _gauge));
@@ -254,46 +291,15 @@ contract MultiStrategyProxy is Initializable {
         }
     }
 
-    function harvest(address _gauge) external {
-        _harvest(_gauge);
-    }
-
     function _distributeHarvest(address _gauge, uint256 _amount) internal {
         Strategy[] storage strats = strategies[_gauge];
         uint256 total = totalSupply[_gauge];
         for (uint i; i < strats.length; i++) {
             if (strats[i].shares > 0) {
                 uint256 amount = strats[i].shares.mul(_amount).div(total);
-                //proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, amount)); OLD. Why always msg.sender? Should be strats[i].addr
                 proxy.safeExecute(hnd, 0, abi.encodeWithSignature("transfer(address,uint256)", strats[i].addr, amount));
             }
         }
-    }
-
-    function setfeeDistribution(address _feeDistribution) external {
-        require(msg.sender == governance, "!gov");
-        feeDistribution = _feeDistribution;
-    }
-
-    // veHND holders do not currently share in fee revenue. 
-    // Putting this as a placehold if they do in the future
-    function claimVeHNDRewards(address recipient) external {
-        require(msg.sender == governance, "!gov");
-        if (block.timestamp < lastTimeCursor.add(604800)) return;
-
-        address p = address(proxy);
-        IFeeDistribution(feeDistribution).claim_many([p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p]);
-        lastTimeCursor = IFeeDistribution(feeDistribution).time_cursor_of(address(proxy));
-    }
-
-    function sweep(address _token) external {
-        require(msg.sender == governance, "!gov");
-        IERC20(_token).safeTransfer(governance, IERC20(_token).balanceOf(address(this)));
-    }
-
-    function sweepProxy(address _token) external {
-        require(msg.sender == governance, "!gov");
-        proxy.safeExecute(_token, 0, abi.encodeWithSignature("transfer(address,uint256)", governance, IERC20(_token).balanceOf(address(proxy))));
     }
 
     function _mint(address _gauge, uint256 _idx, uint256 _shares) internal {
@@ -310,12 +316,6 @@ contract MultiStrategyProxy is Initializable {
         }
         totalSupply[_gauge] -= _shares;
         emit Transfer(_gauge, strategies[_gauge][_idx].addr, address(0), _shares);
-    }
-
-    function claimRewards(address _gauge, address _token) external {
-        require(governance == msg.sender, "!governance");
-        IGauge(_gauge).claim_rewards(address(proxy));
-        proxy.safeExecute(_token, 0, abi.encodeWithSignature("transfer(address,uint256)", msg.sender, IERC20(_token).balanceOf(address(proxy))));
     }
 
 }

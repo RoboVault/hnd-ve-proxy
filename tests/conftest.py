@@ -102,6 +102,10 @@ def hfrax(interface):
 def hnd(interface):
     yield interface.IERC20Extended("0x10010078a54396F62c96dF8532dc2B4847d47ED3")
 
+@pytest.fixture
+def hnd_whale(accounts):
+    yield accounts.at("0x84051Efb5e0c61AC1863B5de72Cd5bC3221870E4", True)
+
 
 
 @pytest.fixture
