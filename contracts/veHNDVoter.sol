@@ -78,7 +78,6 @@ contract veHNDVoter is Initializable {
     function execute(address to, uint value, bytes calldata data) external returns (bool, bytes memory) {
         require(msg.sender == strategy || msg.sender == governance, "!authorized");
         (bool success, bytes memory result) = to.call{value:value}(data);
-
         return (success, result);
     }
 }

@@ -1,0 +1,3 @@
+
+REL_APPROX = 1e-5
+HND_DUST = 5 * 1e16

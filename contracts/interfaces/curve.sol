@@ -13,6 +13,8 @@ interface IGauge {
     function rewarded_token() external returns (address);
 
     function reward_tokens(uint256) external returns (address);
+
+    function lp_token() external returns (address);
 }
 
 interface IFeeDistribution {
