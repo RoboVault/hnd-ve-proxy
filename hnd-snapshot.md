@@ -21,6 +21,10 @@ This proposal is to vote for the request to whitelist Robovault in Hundred (HND)
 Find more infomation about Robovault here:
 - https://beta.robo-vault.com
 - https://docs.robo-vault.com
+
+Robovault's Custom ve-hnd-proxy contracts (inspired by Yearn):
+https://github.com/RoboVault/hnd-ve-proxy
+
 --- 
 
 Please cast your vote:
